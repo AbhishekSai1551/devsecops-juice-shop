@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: devsecops-jenkins
+    user: root # needs root to access Docker socket
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+    environment:
+      - JENKINS_OPTS="--prefix=/jenkins"
+    #Installing Trivy and Checkov on startup
+    command: >
+      bash -c "
+        apt-get update && 
+        apt-get install -y wget apt-transport-https gnupg lsb-release python3-pip python3-venv &&
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | tee /usr/share/keyrings/trivy.gpg > /dev/null &&
+        echo 'deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main' | tee -a /etc/apt/sources.list.d/trivy.list &&
+        apt-get update && apt-get install -y trivy &&
+        python3 -m venv /opt/checkov-venv &&
+        /opt/checkov-venv/bin/pip install checkov &&
+        ln -s /opt/checkov-venv/bin/checkov /usr/local/bin/checkov &&
+        /usr/local/bin/jenkins.sh
+      "
+volumes:
+  jenkins_home:
